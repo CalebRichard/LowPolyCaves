@@ -81,9 +81,18 @@ public class IsoSurfaceGen : MonoBehaviour {
     private void OnValidate() {
 
 		//m_settingsUpdated = true;
-    }
+	}
 
-    void InitializeBlockContainer() {
+	private void OnDrawGizmosSelected() {
+
+		Gizmos.color = Color.yellow;
+		Gizmos.DrawWireCube(Vector3Int.FloorToInt(player.position) + Vector3.one * 0.5f, Vector3Int.one);
+
+		Gizmos.color = Color.white;
+		Gizmos.DrawWireCube(BlockCenterFromPlayer(), Vector3.one * Block.BlockSize);
+	}
+
+	void InitializeBlockContainer() {
 
 		if (m_blockContainer == null) {
             if (GameObject.Find(c_blockContainerName))
@@ -113,7 +122,9 @@ public class IsoSurfaceGen : MonoBehaviour {
 		var size = Block.BlockSize;
 		float sqrViewDistance = c_maxBlocksInView * c_maxBlocksInView * Block.BlockSize * Block.BlockSize;
 
+		// Recycle old blocks
         for (int i = 0; i < m_blocks.Count; i++) {
+
 
         }
 
@@ -126,19 +137,31 @@ public class IsoSurfaceGen : MonoBehaviour {
 					var noise = NoiseMap.NoiseMap3D(bp, size, size, size, noiseScale, octave, persistance, lacunarity, noiseOffset);
 
                     // Loop through voxels
-                    for (int vz = 0; vz < size; vz++) {
-                        for (int vy = 0; vy < size; vy++) {
-                            for (int vx = 0; vx < size; vx++) {
+                    for (int vz = 0; vz < size - 1; vz++) {
+                        for (int vy = 0; vy < size - 1; vy++) {
+                            for (int vx = 0; vx < size - 1; vx++) {
+
+								Cube voxel = new Cube(
+									new Vector4(x * size + vx	 , y * size + vy	, z * size + vz	   , noise[vx	 , vy	 , vz]),
+									new Vector4(x * size + vx + 1, y * size + vy	, z * size + vz    , noise[vx + 1, vy	 , vz]),
+									new Vector4(x * size + vx + 1, y * size + vy	, z * size + vz + 1, noise[vx + 1, vy	 , vz + 1]),
+									new Vector4(x * size + vx	 , y * size + vy	, z * size + vz + 1, noise[vx	 , vy	 , vz + 1]),
+									new Vector4(x * size + vx	 , y * size + vy + 1, z * size + vz    , noise[vx	 , vy + 1, vz]),
+									new Vector4(x * size + vx + 1, y * size + vy + 1, z * size + vz    , noise[vx + 1, vy + 1, vz]),
+									new Vector4(x * size + vx + 1, y * size + vy + 1, z * size + vz + 1, noise[vx + 1, vy + 1, vz + 1]),
+									new Vector4(x * size + vx	 , y * size + vy + 1, z * size + vz + 1, noise[vx	 , vy + 1, vz + 1])
+									);
+
+                                // Loop through surfaces
+                                for (int i = 0; i < surfaces.Length; i++) {
 
 
-                            }
+                                }
+
+								//noise[vx, vy, vz];
+							}
                         }
                     }
-
-					// Loop through surfaces
-					foreach (IsoSurface surface in surfaces) {
-
-					}
 				}
 			}
 		}
@@ -154,7 +177,7 @@ public class IsoSurfaceGen : MonoBehaviour {
 		newBlock.CenterWorldCoordinate = BlockCenterFromPlayer();
 
 		return newBlock;
-    }
+	}
 
 	// Public
 	public void Generate() {
@@ -172,17 +195,6 @@ public class IsoSurfaceGen : MonoBehaviour {
 
 		return BlockCoordinate() * Block.BlockSize + Vector3Int.one * (int)(Block.BlockSize * 0.5f);
 	}
-
-    private void OnDrawGizmosSelected() {
-
-		Gizmos.color = Color.yellow;
-		Gizmos.DrawWireCube(Vector3Int.FloorToInt(player.position) + Vector3.one * 0.5f, Vector3Int.one);
-
-		Gizmos.color = Color.white;
-		Gizmos.DrawWireCube(BlockCenterFromPlayer(), Vector3.one * Block.BlockSize);
-
-
-    }
 
     #endregion // Methods
 

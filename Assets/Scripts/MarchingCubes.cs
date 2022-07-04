@@ -1,12 +1,12 @@
 // Values from http://paulbourke.net/geometry/polygonise/
-
+using System.Collections.Generic;
 using UnityEngine;
 
 public class MarchingCubes {
 
     #region Constants
 
-    public readonly int[] edges = new int[256] {
+    public readonly int[] edges = {
         0x0  , 0x109, 0x203, 0x30a, 0x406, 0x50f, 0x605, 0x70c,
         0x80c, 0x905, 0xa0f, 0xb06, 0xc0a, 0xd03, 0xe09, 0xf00,
         0x190, 0x99 , 0x393, 0x29a, 0x596, 0x49f, 0x795, 0x69c,
@@ -38,10 +38,10 @@ public class MarchingCubes {
         0xe90, 0xf99, 0xc93, 0xd9a, 0xa96, 0xb9f, 0x895, 0x99c,
         0x69c, 0x795, 0x49f, 0x596, 0x29a, 0x393, 0x99 , 0x190,
         0xf00, 0xe09, 0xd03, 0xc0a, 0xb06, 0xa0f, 0x905, 0x80c,
-        0x70c, 0x605, 0x50f, 0x406, 0x30a, 0x203, 0x109, 0x0
-    };
+        0x70c, 0x605, 0x50f, 0x406, 0x30a, 0x203, 0x109, 0x0    };
 
-    public readonly int[,] triangles = new int[256,16] {
+    public readonly int[,] triangulation =
+    {
         {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1},
         {0, 8, 3, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1},
         {0, 1, 9, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1},
@@ -300,6 +300,16 @@ public class MarchingCubes {
         {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1}
     };
 
+    static readonly int[] cornerIndexAFromEdge = {
+    0, 1, 2, 3,
+    4, 5, 6, 7,
+    0, 1, 2, 3 };
+
+    static readonly int[] cornerIndexBFromEdge = {
+    1, 2, 3, 0,
+    5, 6, 7, 4,
+    4, 5, 6, 7 };
+
     #endregion // Constants
 
     #region Fields
@@ -311,12 +321,68 @@ public class MarchingCubes {
 
     #region Methods
 
-    
+    public List<Triangle> GetTriangles(Cube cube, float isoLevel) {
+
+        List<Triangle> tris = new();
+
+        Vector4[] cubeCorners =
+        {
+            cube.a,
+            cube.b,
+            cube.c,
+            cube.d,
+            cube.e,
+            cube.f,
+            cube.g,
+            cube.h
+        };
+
+        int cubeIndex = 0;
+        if (cube.a.w < isoLevel) cubeIndex += 1;
+        if (cube.b.w < isoLevel) cubeIndex += 2;
+        if (cube.c.w < isoLevel) cubeIndex += 4;
+        if (cube.d.w < isoLevel) cubeIndex += 8;
+        if (cube.e.w < isoLevel) cubeIndex += 16;
+        if (cube.f.w < isoLevel) cubeIndex += 32;
+        if (cube.g.w < isoLevel) cubeIndex += 64;
+        if (cube.h.w < isoLevel) cubeIndex += 128;
+
+        for (int i = 0; triangulation[cubeIndex,i] != -1; i += 3) {
+
+
+            int a0 = cornerIndexAFromEdge[triangulation[cubeIndex,i]];
+            int b0 = cornerIndexBFromEdge[triangulation[cubeIndex,i]];
+
+            int a1 = cornerIndexAFromEdge[triangulation[cubeIndex,i + 1]];
+            int b1 = cornerIndexBFromEdge[triangulation[cubeIndex,i + 1]];
+
+            int a2 = cornerIndexAFromEdge[triangulation[cubeIndex,i + 2]];
+            int b2 = cornerIndexBFromEdge[triangulation[cubeIndex,i + 2]];
+
+            Triangle tri;
+            tri.a = InterpolateVerticies(cubeCorners[a0], cubeCorners[b0], isoLevel);
+            tri.b = InterpolateVerticies(cubeCorners[a1], cubeCorners[b1], isoLevel);
+            tri.c = InterpolateVerticies(cubeCorners[a2], cubeCorners[b2], isoLevel);
+            tris.Add(tri);
+        }
+
+        return tris;
+    }
+
+    Vector3 InterpolateVerticies(Vector4 v1, Vector4 v2, float isoLevel) {
+
+        float t = (isoLevel - v1.w) / (v2.w - v1.w);
+        var vec1 = new Vector3(v1.x, v1.y, v1.z);
+        var vec2 = new Vector3(v2.x, v2.y, v2.z);
+
+        return vec1 + t * (vec2 - vec1);
+    }
 
     #endregion // Methods
 }
 
 public struct Triangle {
+
     public Vector3 a;
     public Vector3 b;
     public Vector3 c;
@@ -330,8 +396,25 @@ public struct Triangle {
 }
 
 public struct Cube {
-    public Vector3 a;
-    public Vector3 b;
-    public Vector3 c;
 
+    public Vector4 a;
+    public Vector4 b;
+    public Vector4 c;
+    public Vector4 d;
+    public Vector4 e;
+    public Vector4 f;
+    public Vector4 g;
+    public Vector4 h;
+
+    public Cube(Vector4 a, Vector4 b, Vector4 c, Vector4 d, Vector4 e, Vector4 f, Vector4 g, Vector4 h) {
+
+        this.a = a;
+        this.b = b;
+        this.c = c;
+        this.d = d;
+        this.e = e;
+        this.f = f;
+        this.g = g;
+        this.h = h;
+    }
 }
