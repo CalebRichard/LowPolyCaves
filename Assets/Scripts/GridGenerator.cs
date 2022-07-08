@@ -92,7 +92,7 @@ public class GridGenerator : MonoBehaviour {
         if (Noise != null) {
 			foreach (KeyValuePair<Vector3Int, float> noisePair in Noise) {
 
-				Gizmos.color = Color.Lerp(Color.black, Color.white, noisePair.Value);
+				Gizmos.color = Color.Lerp(Color.black, new Color(1, 1, 1, 0), noisePair.Value);
 				Gizmos.DrawSphere(noisePair.Key, 0.1f);
 			}
 		}

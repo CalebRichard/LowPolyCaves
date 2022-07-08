@@ -83,7 +83,15 @@ public class PlayerMovement : MonoBehaviour {
             PlayerMove3D(_moveInput3D);
     }
 
-    
+    private void OnDrawGizmos() {
+
+        if (Application.isPlaying) {
+
+            Gizmos.color = Color.red;
+            Gizmos.DrawLine(transform.position, transform.forward * 5 + transform.position);
+        }
+    }
+
     void PlayerMove2D(Vector2 targetVector) {
 
         // Determine target speed

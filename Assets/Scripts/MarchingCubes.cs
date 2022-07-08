@@ -6,7 +6,7 @@ public class MarchingCubes {
 
     #region Constants
 
-    public readonly int[] edges = {
+    public static readonly int[] edges = {
         0x0  , 0x109, 0x203, 0x30a, 0x406, 0x50f, 0x605, 0x70c,
         0x80c, 0x905, 0xa0f, 0xb06, 0xc0a, 0xd03, 0xe09, 0xf00,
         0x190, 0x99 , 0x393, 0x29a, 0x596, 0x49f, 0x795, 0x69c,
@@ -40,7 +40,7 @@ public class MarchingCubes {
         0xf00, 0xe09, 0xd03, 0xc0a, 0xb06, 0xa0f, 0x905, 0x80c,
         0x70c, 0x605, 0x50f, 0x406, 0x30a, 0x203, 0x109, 0x0    };
 
-    public readonly int[,] triangulation =
+    public static readonly int[,] triangulation =
     {
         {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1},
         {0, 8, 3, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1},
@@ -321,21 +321,11 @@ public class MarchingCubes {
 
     #region Methods
 
-    public List<Triangle> GetTriangles(Cube cube, float isoLevel) {
+    public static List<Triangle> GetTriangles(Cube cube, float isoLevel) {
 
         List<Triangle> tris = new();
 
-        Vector4[] cubeCorners =
-        {
-            cube.a,
-            cube.b,
-            cube.c,
-            cube.d,
-            cube.e,
-            cube.f,
-            cube.g,
-            cube.h
-        };
+        Vector4[] cubeCorners = cube.Vectors();
 
         int cubeIndex = 0;
         if (cube.a.w < isoLevel) cubeIndex += 1;
@@ -360,16 +350,16 @@ public class MarchingCubes {
             int b2 = cornerIndexBFromEdge[triangulation[cubeIndex,i + 2]];
 
             Triangle tri;
-            tri.a = InterpolateVerticies(cubeCorners[a0], cubeCorners[b0], isoLevel);
-            tri.b = InterpolateVerticies(cubeCorners[a1], cubeCorners[b1], isoLevel);
-            tri.c = InterpolateVerticies(cubeCorners[a2], cubeCorners[b2], isoLevel);
+            tri.a = VertLerp(cubeCorners[a0], cubeCorners[b0], isoLevel);
+            tri.b = VertLerp(cubeCorners[a1], cubeCorners[b1], isoLevel);
+            tri.c = VertLerp(cubeCorners[a2], cubeCorners[b2], isoLevel);
             tris.Add(tri);
         }
 
         return tris;
     }
 
-    Vector3 InterpolateVerticies(Vector4 v1, Vector4 v2, float isoLevel) {
+    static Vector3 VertLerp(Vector4 v1, Vector4 v2, float isoLevel) {
 
         float t = (isoLevel - v1.w) / (v2.w - v1.w);
         var vec1 = new Vector3(v1.x, v1.y, v1.z);
@@ -392,6 +382,37 @@ public struct Triangle {
         this.a = a;
         this.b = b;
         this.c = c;
+    }
+
+    public Vector3 this[int i] {
+        get {
+            return i switch
+            {
+                0 => a,
+                1 => b,
+                _ => c
+            };
+        }
+        set {
+            switch (i)
+            {
+                case 0:
+                    a = value;
+                    break;
+                case 1:
+                    b = value;
+                    break;
+                default:
+                    c = value;
+                    break;
+
+            }
+        }
+    }
+
+    public Vector3[] Vectors() {
+
+        return new Vector3[] { a, b, c };
     }
 }
 
@@ -416,5 +437,55 @@ public struct Cube {
         this.f = f;
         this.g = g;
         this.h = h;
+    }
+
+    public Vector3 this[int i] {
+        get {
+            return i switch
+            {
+                0 => a,
+                1 => b,
+                2 => c,
+                3 => d,
+                4 => e,
+                5 => f,
+                6 => g,
+                _ => h
+            };
+        }
+        set {
+            switch (i) {
+                case 0:
+                    a = value;
+                    break;
+                case 1:
+                    b = value;
+                    break;
+                case 2:
+                    c = value;
+                    break;
+                case 3:
+                    d = value;
+                    break;
+                case 4:
+                    e = value;
+                    break;
+                case 5:
+                    f = value;
+                    break;
+                case 6:
+                    g = value;
+                    break;
+                default:
+                    h = value;
+                    break;
+
+            }
+        }
+    }
+
+    public Vector4[] Vectors() {
+
+        return new Vector4[] {a, b, c, d, e, f, g, h};
     }
 }
