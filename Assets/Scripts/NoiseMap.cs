@@ -2,37 +2,94 @@ using UnityEngine;
 
 public static class NoiseMap {
 
+    // Lacunarity - Amount of detail - 1 or higher
+    // Persistance - Amplitude culling - between 0 and 1
+
+    #region Constants
+
+    private const float maxNoise = 2f;
+    private const float minNoise = -2f;
+
+    #endregion // Constants
+
     #region Methods
 
-    public static float[,] NoiseMap2D(Vector2Int pos, int mapWidth, int mapHeight, float noiseScale, int octaves, float persistance, float lacunarity, Vector2 offsets) {
+    public static float[] NoiseValues(float pos, int mapWidth, float noiseScale, int octaves, float persistance, float lacunarity, float offset, bool octaveOffset) {
 
         if (noiseScale <= 0)
             noiseScale = 0.0001f;
         if (octaves <= 0)
             octaves = 1;
 
-        int halfWidth = (int)(mapWidth * 0.5f);
-        int halfHeight = (int)(mapHeight * 0.5f);
+        float halfWidth = mapWidth * 0.5f;
 
-        Vector2Int minVec = new(pos.x - halfWidth, pos.y - halfHeight);
-        Vector2Int maxVec = new(pos.x + halfWidth, pos.y + halfHeight);
+        if (octaveOffset) {
+            for (int i = 0; i < octaves; i++) {
 
-        Vector2[] octaveOffsets = new Vector2[octaves];
+                float randW = Random.value;
 
-        for (int i = 0; i < octaves; i++) {
-
-            float randx = Random.value;
-            float randy = Random.value;
-            octaveOffsets[i] = new Vector2(randx, randy);
+                offset += randW;
+            }
         }
 
-        float maxNoise = float.MinValue;
-        float minNoise = float.MaxValue;
+        float[] noiseValues = new float[mapWidth];
 
-        float[,] noiseMap = new float[mapWidth, mapHeight];
+        for (int x = 0; x < mapWidth; x++) {
 
-        for (int y = minVec.y; y < maxVec.y; y++) {
-            for (int x = minVec.x; x < maxVec.x; x++) {
+            float amplitude = 1f;
+            float frequency = 1f;
+            float noiseHeight = 0;
+
+            for (int i = 0; i < octaves; i++) {
+
+                float pointX = x - halfWidth + pos;
+
+                float sampleX = pointX / noiseScale * frequency + offset;
+                float noiseValue = NoiseGen.Perlin(sampleX);
+                noiseHeight += noiseValue * amplitude;
+
+                amplitude *= persistance;
+                frequency *= lacunarity;
+            }
+
+            noiseValues[x] = noiseHeight;
+        }
+
+        // Normalize output value
+        for (int x = 0; x < mapWidth; x++) {
+
+            noiseValues[x] = Mathf.InverseLerp(minNoise, maxNoise, noiseValues[x]);
+        }
+
+        return noiseValues;
+    }
+
+    public static float[,] NoiseValues(Vector2 pos, int mapWidth, int mapDepth, float noiseScale,
+        int octaves, float persistance, float lacunarity, Vector2 offsets, bool octaveOffsets) {
+
+        if (noiseScale <= 0)
+            noiseScale = 0.0001f;
+        if (octaves <= 0)
+            octaves = 1;
+
+        float halfWidth = mapWidth * 0.5f;
+        float halfDepth = mapDepth * 0.5f;
+
+        if (octaveOffsets) {
+            for (int i = 0; i < octaves; i++) {
+
+                float randW = Random.value;
+                float randD = Random.value;
+
+                offsets.x += randW;
+                offsets.y += randD;
+            }
+        }
+
+        float[,] noiseValues = new float[mapWidth, mapDepth];
+
+        for (int d = 0; d < mapDepth; d++) {
+            for (int w = 0; w < mapWidth; w++) {
 
                 float amplitude = 1f;
                 float frequency = 1f;
@@ -40,65 +97,63 @@ public static class NoiseMap {
 
                 for (int i = 0; i < octaves; i++) {
 
-                    float sampleX = x /  noiseScale * frequency + octaveOffsets[i].x + offsets.x;
-                    float sampleY = y /  noiseScale * frequency + octaveOffsets[i].y + offsets.y;
-                    float noiseValue = NoiseGen.Perlin(sampleX, sampleY);
+                    float pointW = w - halfWidth + pos.x;
+                    float pointD = d - halfDepth + pos.y;
+
+                    float sampleW = pointW / noiseScale * frequency + offsets.x;
+                    float sampleD = pointD / noiseScale * frequency + offsets.y;
+                    float noiseValue = NoiseGen.Perlin(sampleW, sampleD);
                     noiseHeight += noiseValue * amplitude;
 
                     amplitude *= persistance;
                     frequency *= lacunarity;
                 }
 
-                if(noiseHeight > maxNoise)
-                    maxNoise = noiseHeight;
-                else if(noiseHeight < minNoise)
-                    minNoise = noiseHeight;
-
-                noiseMap[x, y] = noiseHeight;
+                noiseValues[w, d] = noiseHeight;
             }
         }
 
         // Normalize output value
-        for (int y = 0; y < mapHeight; y++) {
-            for (int x = 0; x < mapWidth; x++) {
+        for (int d = 0; d < mapDepth; d++) {
+            for (int w = 0; w < mapWidth; w++) {
 
-                noiseMap[x, y] = Mathf.InverseLerp(minNoise, maxNoise, noiseMap[x,y]);
+                noiseValues[w, d] = Mathf.InverseLerp(minNoise, maxNoise, noiseValues[w, d]);
             }
         }
 
-        return noiseMap;
+        return noiseValues;
     }
 
-    public static float[,,] NoiseMap3D(Vector3 pos, int mapWidth, int mapHeight, int mapDepth, float noiseScale, int octaves, float persistance, float lacunarity, Vector3 offsets) {
+    public static float[,,] NoiseValues(Vector3 pos, int mapWidth, int mapHeight, int mapDepth, float noiseScale,
+        int octaves, float persistance, float lacunarity, Vector3 offsets, bool octaveOffsets) {
 
         if (noiseScale <= 0)
             noiseScale = 0.0001f;
         if (octaves <= 0)
             octaves = 1;
 
-        int halfWidth = (int)(mapWidth * 0.5f);
-        int halfHeight = (int)(mapHeight * 0.5f);
-        int halfDepth = (int)(mapDepth * 0.5f);
+        float halfWidth = mapWidth * 0.5f;
+        float halfHeight = mapHeight * 0.5f;
+        float halfDepth = mapDepth * 0.5f;
 
-        //Vector3[] octaveOffsets = new Vector3[octaves];
+        if (octaveOffsets) {
+            for (int i = 0; i < octaves; i++) {
 
-        //for (int i = 0; i < octaves; i++) {
+                float randW = Random.value;
+                float randH = Random.value;
+                float randD = Random.value;
 
-        //    float randx = Random.value;
-        //    float randy = Random.value;
-        //    float randz = Random.value;
+                offsets.x += randW;
+                offsets.y += randH;
+                offsets.z += randD;
+            }
+        }
 
-        //    octaveOffsets[i] = new Vector3(randx, randy, randz);
-        //}
+        float[,,] noiseValues = new float[mapWidth, mapHeight, mapDepth];
 
-        float maxNoise = 2f;
-        float minNoise = -2f;
-
-        float[,,] noiseMap = new float[mapWidth, mapHeight, mapDepth];
-
-        for (int z = 0; z < mapDepth; z++) {
-            for (int y = 0; y < mapHeight; y++) {
-                for (int x = 0; x < mapWidth; x++) {
+        for (int w = 0; w < mapDepth; w++) {
+            for (int h = 0; h < mapHeight; h++) {
+                for (int l = 0; l < mapWidth; l++) {
 
                     float amplitude = 1f;
                     float frequency = 1f;
@@ -106,46 +161,106 @@ public static class NoiseMap {
 
                     for (int i = 0; i < octaves; i++) {
 
-                        float pointX = x - halfWidth + pos.x;
-                        float pointY = y - halfHeight + pos.y;
-                        float pointZ = z - halfDepth + pos.z;
+                        float pointL = l - halfWidth + pos.x;
+                        float pointH = h - halfHeight + pos.y;
+                        float pointW = w - halfDepth + pos.z;
 
-                        float sampleX = pointX / noiseScale * frequency /*+ octaveOffsets[i].x*/ + offsets.x;
-                        float sampleY = pointY / noiseScale * frequency /*+ octaveOffsets[i].y*/ + offsets.y;
-                        float sampleZ = pointZ / noiseScale * frequency /*+ octaveOffsets[i].z*/ + offsets.z;
-                        float noiseValue = NoiseGen.Perlin(sampleX, sampleY, sampleZ);
+                        float sampleL = pointL / noiseScale * frequency + offsets.x;
+                        float sampleH = pointH / noiseScale * frequency + offsets.y;
+                        float sampleW = pointW / noiseScale * frequency + offsets.z;
+                        float noiseValue = NoiseGen.Perlin(sampleL, sampleH, sampleW);
                         noiseHeight += noiseValue * amplitude;
 
                         amplitude *= persistance;
                         frequency *= lacunarity;
                     }
 
-                    //if (noiseHeight > maxNoise)
-                    //    maxNoise = noiseHeight;
-                    //else if (noiseHeight < minNoise)
-                    //    minNoise = noiseHeight;
-
-                    noiseMap[x, y, z] = noiseHeight;
+                    noiseValues[l, h, w] = noiseHeight;
                 }
             }
         }
 
         // Normalize output value
-        for (int z = 0; z < mapDepth; z++) {
-            for (int y = 0; y < mapHeight; y++) {
-                for (int x = 0; x < mapWidth; x++) {
+        for (int w = 0; w < mapDepth; w++) {
+            for (int h = 0; h < mapHeight; h++) {
+                for (int l = 0; l < mapWidth; l++) {
 
-                    noiseMap[x, y, z] = Mathf.InverseLerp(minNoise, maxNoise, noiseMap[x, y, z]);
+                    noiseValues[l, h, w] = Mathf.InverseLerp(minNoise, maxNoise, noiseValues[l, h, w]);
                 }
             }
         }
 
-        return noiseMap;
+        return noiseValues;
     }
 
-    public static float[,,] NoiseMap3D(Vector3 pos, int mapWidth, int mapHeight, int mapDepth, float noiseScale, int octaves, float persistance, float lacunarity) {
+    // Thinking about trying to keep the coordinate data input into the noise function for use later, but unsure if necessary
+    public static Vector4[,,] NoiseValues4(Vector3 pos, int mapWidth, int mapHeight, int mapDepth, float noiseScale,
+    int octaves, float persistance, float lacunarity, Vector3 offsets, bool octaveOffsets) {
 
-        return NoiseMap3D(pos, mapWidth, mapHeight, mapDepth, noiseScale, octaves, persistance, lacunarity, new Vector3(0, 0, 0));
+        if (noiseScale <= 0)
+            noiseScale = 0.0001f;
+        if (octaves <= 0)
+            octaves = 1;
+
+        float halfWidth = mapWidth * 0.5f;
+        float halfHeight = mapHeight * 0.5f;
+        float halfDepth = mapDepth * 0.5f;
+
+        if (octaveOffsets) {
+            for (int i = 0; i < octaves; i++) {
+
+                float randW = Random.value;
+                float randH = Random.value;
+                float randD = Random.value;
+
+                offsets.x += randW;
+                offsets.y += randH;
+                offsets.z += randD;
+            }
+        }
+
+        Vector4[,,] noiseValues = new Vector4[mapWidth, mapHeight, mapDepth];
+
+        for (int w = 0; w < mapDepth; w++) {
+            for (int h = 0; h < mapHeight; h++) {
+                for (int l = 0; l < mapWidth; l++) {
+
+                    float amplitude = 1f;
+                    float frequency = 1f;
+                    float noiseHeight = 0;
+
+                    float pointL = l - halfWidth + pos.x;
+                    float pointH = h - halfHeight + pos.y;
+                    float pointW = w - halfDepth + pos.z;
+
+                    for (int i = 0; i < octaves; i++) {
+
+                        float sampleL = pointL / noiseScale * frequency + offsets.x;
+                        float sampleH = pointH / noiseScale * frequency + offsets.y;
+                        float sampleW = pointW / noiseScale * frequency + offsets.z;
+                        float noiseValue = NoiseGen.Perlin(sampleL, sampleH, sampleW);
+                        noiseHeight += noiseValue * amplitude;
+
+                        amplitude *= persistance;
+                        frequency *= lacunarity;
+                    }
+
+                    noiseValues[l, h, w] = new Vector4(pointL, pointH, pointW, noiseHeight);
+                }
+            }
+        }
+
+        // Normalize output value
+        for (int w = 0; w < mapDepth; w++) {
+            for (int h = 0; h < mapHeight; h++) {
+                for (int l = 0; l < mapWidth; l++) {
+
+                    noiseValues[l, h, w].w = Mathf.InverseLerp(minNoise, maxNoise, noiseValues[l, h, w].w);
+                }
+            }
+        }
+
+        return noiseValues;
     }
 
     #endregion // Methods

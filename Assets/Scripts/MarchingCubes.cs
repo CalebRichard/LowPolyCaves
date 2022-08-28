@@ -1,8 +1,19 @@
-// Values from http://paulbourke.net/geometry/polygonise/
+/*
+ * A Unity C# class to impliment the Marching Cubes algorithm
+ * Generates mesh data
+ * 
+ *  Values from http://paulbourke.net/geometry/polygonise/
+ */
+
+#region Using
+
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 
-public class MarchingCubes {
+#endregion //Using
+
+public static class MarchingCubes {
 
     #region Constants
 
@@ -312,13 +323,6 @@ public class MarchingCubes {
 
     #endregion // Constants
 
-    #region Fields
-
-    public Vector3[] points = new Vector3[3];
-    public Triangle tri;
-
-    #endregion // Fields
-
     #region Methods
 
     public static List<Triangle> GetTriangles(Cube cube, float isoLevel) {
@@ -390,7 +394,8 @@ public struct Triangle {
             {
                 0 => a,
                 1 => b,
-                _ => c
+                2 => c,
+                _ => throw new ArgumentOutOfRangeException()
             };
         }
         set {
@@ -402,10 +407,11 @@ public struct Triangle {
                 case 1:
                     b = value;
                     break;
-                default:
+                case 2:
                     c = value;
                     break;
-
+                default:
+                    throw new ArgumentOutOfRangeException();
             }
         }
     }
@@ -439,7 +445,7 @@ public struct Cube {
         this.h = h;
     }
 
-    public Vector3 this[int i] {
+    public Vector4 this[int i] {
         get {
             return i switch
             {
@@ -450,7 +456,8 @@ public struct Cube {
                 4 => e,
                 5 => f,
                 6 => g,
-                _ => h
+                7 => h,
+                _ => throw new ArgumentOutOfRangeException()
             };
         }
         set {
@@ -476,10 +483,11 @@ public struct Cube {
                 case 6:
                     g = value;
                     break;
-                default:
+                case 7:
                     h = value;
                     break;
-
+                default:
+                    throw new ArgumentOutOfRangeException();
             }
         }
     }

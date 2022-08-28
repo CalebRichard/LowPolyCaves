@@ -60,4 +60,10 @@ public class Functions
 
         return 0.5f * (Random.value + 1) * (max - min) + min;
     }
+
+    // Scales float value from one scale to another
+    public static float ScaleToRange(float v, float min, float max, float smin, float smax) {
+
+        return smin + (v - min) / (max - min) * (smax - smin);
+    }
 }

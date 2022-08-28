@@ -6,7 +6,7 @@ public class Block : MonoBehaviour {
 
 	#region Constants
 
-	public static int BlockSize = 32;
+	public static int BlockSize = 16;
 
 	#endregion // Constants
 
@@ -15,23 +15,67 @@ public class Block : MonoBehaviour {
 	// Public
 	public Vector3Int BlockCoordinate;
 	public Vector3 CenterWorldCoordinate;
-	public List<MeshContainer> MeshContainers = new();
+	public List<Triangle> TriangleList;
+	public Material Material;
+	public Dictionary<int, MeshContainer> Meshes;
 
-	#endregion // Fields
+    #endregion // Fields
 
-	#region Methods
+    #region Methods
 
-    public void GenerateContainer(int index) {
+    private void Awake() {
 
-        if (MeshContainers.Count <= index) {
+		TriangleList = new();
+		Meshes = new();
+    }
 
-			GameObject container = new("Surface"+index);
-			container.transform.parent = transform;
+	public MeshContainer this[int i] {
 
-			MeshContainer newContainer = container.AddComponent<MeshContainer>();
-			MeshContainers.Add(newContainer);
+        get { return Meshes[i]; }
+    }
+
+	public bool ContainsLOD(int i) {
+
+		return Meshes.ContainsKey(i);
+    }
+
+    public void AddLODMesh(int index) {
+
+        if (!Meshes.ContainsKey(index)) {
+
+			GameObject lodMesh = new("LOD"+index);
+			lodMesh.transform.parent = transform;
+
+			MeshContainer container = lodMesh.AddComponent<MeshContainer>();
+			Meshes.Add(index, container);
 		}
     }
+
+	public void RegenerateMesh(int lod) {
+
+		if (Meshes.ContainsKey(lod)) {
+
+			Meshes[lod].RegenerateMesh(TriangleList);
+		}
+    }
+
+	public void ShowMesh(int lod) {
+
+		if (Meshes.ContainsKey(lod)) {
+
+			Meshes[lod].ShowMesh(Material, false);
+		}
+	}
+
+	public void HideMesh(int lod) {
+
+		if (Meshes.ContainsKey(lod)) {
+
+			Meshes[lod].HideMesh();
+		}
+	}
+
+	// Expose MeshContainer methods?
 
 	#endregion // Methods
 }

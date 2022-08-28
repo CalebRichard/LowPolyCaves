@@ -5,7 +5,6 @@ public class MeshContainer : MonoBehaviour {
 
 	#region Fields
 
-	public List<Triangle> triangleList;
 	public Mesh mesh;
 	public MeshFilter meshFilter;
 	public MeshRenderer meshRenderer;
@@ -18,7 +17,6 @@ public class MeshContainer : MonoBehaviour {
 
 	private void Awake() {
 
-		triangleList = new();
 		meshFilter = gameObject.AddComponent<MeshFilter>();
 		meshFilter.mesh = new() { name = gameObject.name, indexFormat = UnityEngine.Rendering.IndexFormat.UInt32 };
 		mesh = meshFilter.mesh;
@@ -26,17 +24,13 @@ public class MeshContainer : MonoBehaviour {
 		meshRenderer.enabled = false;
     }
 
-    public void DestroyOrDisable() {
+	// I don't like this
+    public void Destroy() {
 
-		if (Application.isPlaying) {
-			mesh.Clear();
-			gameObject.SetActive(false);
-		}
-		else
-			DestroyImmediate(gameObject);
+		Destroy(gameObject);
 	}
 
-	public void RegenerateMesh() {
+	public void RegenerateMesh(List<Triangle> triangleList) {
 
 		mesh.Clear();
 
@@ -59,8 +53,8 @@ public class MeshContainer : MonoBehaviour {
 
 	public void ShowMesh(Material material, bool generateCollider) {
 
-		meshRenderer.enabled = true;
 		meshRenderer.material = material;
+		meshRenderer.enabled = true;
 
 		if (generateCollider) {
 
@@ -74,7 +68,7 @@ public class MeshContainer : MonoBehaviour {
 			meshCollider.enabled = true;
 		}
 		else
-			DestroyImmediate(meshCollider);
+			Destroy(meshCollider);
 	}
 
 	public void HideMesh() {
@@ -82,7 +76,7 @@ public class MeshContainer : MonoBehaviour {
 		if(meshRenderer != null)
 			meshRenderer.enabled = false;
 
-		DestroyImmediate(meshCollider);
+		Destroy(meshCollider);
 	}
 
     #endregion // Methods
