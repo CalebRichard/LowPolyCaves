@@ -30,27 +30,6 @@ public class MeshContainer : MonoBehaviour {
 		Destroy(gameObject);
 	}
 
-	public void RegenerateMesh(List<Triangle> triangleList) {
-
-		mesh.Clear();
-
-		var verticies = new Vector3[triangleList.Count * 3];
-		var triangles = new int[triangleList.Count * 3];
-
-		for (int j = 0; j < triangleList.Count; j++) {
-			for (int k = 0; k < 3; k++) {
-
-				Triangle tri = triangleList[j];
-				verticies[j * 3 + k] = tri[k];
-				triangles[j * 3 + k] = j * 3 + k;
-			}
-		}
-
-		mesh.vertices = verticies;
-		mesh.triangles = triangles;
-		mesh.RecalculateNormals();
-	}
-
 	public void ShowMesh(Material material, bool generateCollider) {
 
 		meshRenderer.material = material;

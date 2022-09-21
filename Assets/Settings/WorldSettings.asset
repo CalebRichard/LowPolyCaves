@@ -12,9 +12,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 19510ec016e0aac4cba51f2f90c93dc7, type: 3}
   m_Name: WorldSettings
   m_EditorClassIdentifier: 
-  surfaceValue: 0.417
+  surfaceValue: 0.437
   noiseScale: 10
-  octave: 1
+  octaves: 1
   persistance: 0.736
   lacunarity: 2.92
   noiseOffset: {x: 0, y: 0, z: 0}
+  octaveOffsets: 0

@@ -15,276 +15,366 @@ using UnityEngine;
 
 public class InfiniteTerrain : MonoBehaviour {
 
-	#region Constants
+    #region Constants
 
-	private const int c_blockRenderDistance = 4;
-	private const string c_blockContainerName = "Terrain";
-	private const int c_lodStep = 4;
+    private const string c_blockContainerName = "Terrain";
 
-	#endregion // Constants
+    #endregion // Constants
 
-	#region Fields
+    #region Fields
 
-	// Public
-	public Transform Character;
-	public Material BlockMaterial;
+    private int blockVisibleRadius = 10;
+    private int blockLoadRadius = 20;
 
-	// Blocks
-	private Vector3Int currentCharacterBlockCoord;
-	private Vector3Int previousCharacterBlockCoord;
-	private GameObject blockContainer;
-	private Dictionary<Vector3Int, Block> visibleBlocks;
-	private Queue<Block> blockRecycling;
+    public Transform Character;
+    public static Vector3 characterPosition;
+    //private Vector3Int currentCharacterBlockCoord;
+    private Vector3Int previousCharacterBlockCoord;
+    public static TerrainGenerator terrainGenerator;
+    public bool drawGizmos = true;
 
-	// Level of Detail
-	private Dictionary<Vector3Int, int> visibleMeshLODs;
+    public static int BlockSize = 16;
+    private GameObject blockContainer;
+    private Dictionary<Vector3Int, MeshBlock> loadedBlocks;
+    private Dictionary<Vector3Int, int> visibleBlocksLevelOfDetail;
+    private Queue<MeshBlock> blockRecycling;
 
-	// Editor
-	public SettingsTerrain TerrainSettings;
-	[HideInInspector]
-	public bool foldout;
+    #endregion // Fields
 
-	#endregion // Fields
+    #region Methods
 
-	#region Methods
+    // Built-in
+    private void Awake() {
 
-	// Inherited
-	private void Awake() {
-        
-		InitializeBlockFields();
-		previousCharacterBlockCoord = GetBlockCoordinate(Character.position);
+        blockContainer = GameObject.Find(c_blockContainerName) ? GameObject.Find(c_blockContainerName) : new GameObject(c_blockContainerName);
+        loadedBlocks = new();
+        visibleBlocksLevelOfDetail = new();
+        blockRecycling = new();
+        terrainGenerator = FindObjectOfType<TerrainGenerator>();
+    }
+
+    private void Start() {
+
+        characterPosition = Character.position;
+        previousCharacterBlockCoord = GetBlockCoordinate(characterPosition);
+        UpdateBlocksLevelOfDetail(previousCharacterBlockCoord);
+        LoadVisibleBlocks();
+        ShowVisibleBlocks();
     }
 
     private void Update() {
 
-		currentCharacterBlockCoord = GetBlockCoordinate(Character.position);
+        characterPosition = Character.position;
+        var blockCoord = GetBlockCoordinate(characterPosition);
 
-		if(currentCharacterBlockCoord != previousCharacterBlockCoord) {
+        if (blockCoord != previousCharacterBlockCoord) {
 
-			UpdateTerrainAroundCharacter();
-			previousCharacterBlockCoord = currentCharacterBlockCoord;
+            visibleBlocksLevelOfDetail.Clear();
+            UpdateBlocksLevelOfDetail(blockCoord);
+            HideBlocks();
+            RecycleBlocks();
+            LoadVisibleBlocks();
+            ShowVisibleBlocks();
+            EmptyRecycling();
+
+            previousCharacterBlockCoord = blockCoord;
         }
     }
 
-    private void OnValidate() {
-        
+    private void OnDrawGizmos() {
 
+        if (Application.isPlaying && drawGizmos) {
+
+            Gizmos.color = Color.yellow;
+            Gizmos.DrawWireSphere(characterPosition, BlockSize * blockVisibleRadius);
+            Gizmos.color = Color.red;
+            Gizmos.DrawWireSphere(characterPosition, BlockSize * blockLoadRadius);
+        }
     }
 
-    // Public
-    public Vector3Int GetBlockCoordinate(Vector3 vector) {
+    // General
+    void UpdateBlocksLevelOfDetail(Vector3Int blockCoord) {
 
-		return Vector3Int.FloorToInt(vector / Block.BlockSize);
-	}
+        int xIter = 1, yIter = 1, zIter = 1;
 
-	public Vector3Int GetBlockCenter(Vector3Int vec) {
+        for (int z = blockCoord.z; z < blockCoord.z + blockVisibleRadius; z++) {
+            for (int y = blockCoord.y; y < blockCoord.y + blockVisibleRadius; y++) {
+                for (int x = blockCoord.x; x < blockCoord.x + blockVisibleRadius; x++) {
+                    // trying to think of a way to iterate over coords near player first
+                    // so blocks near player update before all others
+                    // Get direction character is looking and start in that quadrant
 
-		return vec * Block.BlockSize + Vector3Int.one * (int)(Block.BlockSize * 0.5f);
+                    var newBlockCoord = new Vector3Int(x, y, z);
+                    var dist = Vector3Int.Distance(newBlockCoord, blockCoord);
+                    if (dist < blockVisibleRadius)
+                        visibleBlocksLevelOfDetail.Add(newBlockCoord, Mathf.FloorToInt(dist));
+
+                    newBlockCoord = new Vector3Int(x - xIter, y, z);
+                    dist = Vector3Int.Distance(newBlockCoord, blockCoord);
+                    if (dist < blockVisibleRadius)
+                        visibleBlocksLevelOfDetail.Add(newBlockCoord, Mathf.FloorToInt(dist));
+
+                    newBlockCoord = new Vector3Int(x, y, z - zIter);
+                    dist = Vector3Int.Distance(newBlockCoord, blockCoord);
+                    if (dist < blockVisibleRadius)
+                        visibleBlocksLevelOfDetail.Add(newBlockCoord, Mathf.FloorToInt(dist));
+
+                    newBlockCoord = new Vector3Int(x - xIter, y, z - zIter);
+                    dist = Vector3Int.Distance(newBlockCoord, blockCoord);
+                    if (dist < blockVisibleRadius)
+                        visibleBlocksLevelOfDetail.Add(newBlockCoord, Mathf.FloorToInt(dist));
+
+                    newBlockCoord = new Vector3Int(x, y - yIter, z);
+                    dist = Vector3Int.Distance(newBlockCoord, blockCoord);
+                    if (dist < blockVisibleRadius)
+                        visibleBlocksLevelOfDetail.Add(newBlockCoord, Mathf.FloorToInt(dist));
+
+                    newBlockCoord = new Vector3Int(x - xIter, y - yIter, z);
+                    dist = Vector3Int.Distance(newBlockCoord, blockCoord);
+                    if (dist < blockVisibleRadius)
+                        visibleBlocksLevelOfDetail.Add(newBlockCoord, Mathf.FloorToInt(dist));
+
+                    newBlockCoord = new Vector3Int(x, y - yIter, z - zIter);
+                    dist = Vector3Int.Distance(newBlockCoord, blockCoord);
+                    if (dist < blockVisibleRadius)
+                        visibleBlocksLevelOfDetail.Add(newBlockCoord, Mathf.FloorToInt(dist));
+
+                    newBlockCoord = new Vector3Int(x - xIter, y - yIter, z - zIter);
+                    dist = Vector3Int.Distance(newBlockCoord, blockCoord);
+                    if (dist < blockVisibleRadius)
+                        visibleBlocksLevelOfDetail.Add(newBlockCoord, Mathf.FloorToInt(dist));
+
+                    xIter += 2;
+                }
+                yIter += 2;
+            }
+            zIter += 2;
+        }
+
+        //for (int z = blockCoord.z - blockVisibleRadius; z < blockCoord.z + blockVisibleRadius; z++) {
+        //    for (int y = blockCoord.y - blockVisibleRadius; y < blockCoord.y + blockVisibleRadius; y++) {
+        //        for (int x = blockCoord.x - blockVisibleRadius; x < blockCoord.x + blockVisibleRadius; x++) {
+
+        //            var newBlockCoord = new Vector3Int(x, y, z);
+
+        //            if (Vector3Int.Distance(newBlockCoord, blockCoord) < blockVisibleRadius) {
+
+        //                var lod = Mathf.FloorToInt(Vector3Int.Distance(newBlockCoord, blockCoord));
+        //                visibleBlocksLevelOfDetail.Add(newBlockCoord, lod);
+        //            }
+        //        }
+        //    }
+        //}
     }
 
-	public Vector3Int GetBlockCenter(Vector3 vec) {
+    private void HideBlocks() {
 
-		return GetBlockCenter(GetBlockCoordinate(vec));
+        foreach (MeshBlock block in loadedBlocks.Values) {
+
+            if (!visibleBlocksLevelOfDetail.ContainsKey(block.BlockCoordinate))
+                block.SetVisible(false);
+        }
     }
 
+    private void RecycleBlocks() {
 
-	// Private
+        MeshBlock block;
 
-	void InitializeBlockFields() {
+        foreach(KeyValuePair<Vector3Int, MeshBlock> pair in loadedBlocks) {
 
-		visibleBlocks = new();
-		blockRecycling = new();
-		visibleMeshLODs = new();
-		// TBI: Saving/Loading world data
+            var coord = pair.Key;
+            block = pair.Value;
 
-		blockContainer = (GameObject.Find(c_blockContainerName)) ? GameObject.Find(c_blockContainerName) : new GameObject(c_blockContainerName);
-		UpdateTerrainAroundCharacter();
-	}
+            if (Vector3Int.Distance(GetBlockCoordinate(characterPosition), coord) > blockLoadRadius) {
 
-	public void UpdateTerrainAroundCharacter() {
+                blockRecycling.Enqueue(block);
+                block.SetVisible(false);
+            }
+        }
+    }
 
-		// Update list of visible mesh LODs near character
-		BlockCoordinatesLoop(UpdateLODSAroundCharacter);
+    private void LoadVisibleBlocks() {
 
-		RecycleBlocks();
+        foreach (KeyValuePair<Vector3Int, int> pair in visibleBlocksLevelOfDetail) {
 
-		// Update visible blocks list based on LODs
-		// Generate/Regen meshes for visible blocks
-		// Show new blocks added to visible blocks list
-		UpdateVisibleBlocks();
+            Vector3Int coord = pair.Key;
+            int lod = pair.Value;
 
-		// Destroy blocks still in recycling
-		ClearRecycling();
+            if (!loadedBlocks.ContainsKey(coord)) {
 
-		// Hide block renderers out of character view
-	}
+                loadedBlocks.Add(coord, new(coord, blockContainer.transform, lod));
+            }
+            else if (loadedBlocks[coord].LOD != lod){
 
-	void UpdateLODSAroundCharacter(Vector3Int blockCoord) {
+                loadedBlocks[coord].LOD = lod;
+            }
+        }
+    }
 
-		var lod = Mathf.FloorToInt((currentCharacterBlockCoord - blockCoord).magnitude / c_lodStep);
-		if (visibleMeshLODs.ContainsKey(blockCoord))
-			visibleMeshLODs[blockCoord] = lod;
-		else
-			visibleMeshLODs.Add(blockCoord, lod);
+    private void ShowVisibleBlocks() {
 
-		//print($"Block{blockCoord} lod: {lod}");
-	}
+        foreach(Vector3Int vec in visibleBlocksLevelOfDetail.Keys) {
 
-	void UpdateVisibleBlocks() {
+            loadedBlocks[vec].DrawCurrentMesh();
+        }
+    }
 
-        foreach (KeyValuePair<Vector3Int, int> lodMesh in visibleMeshLODs) {
+    private void EmptyRecycling() {
 
-			Block block;
-			var blockCoord = lodMesh.Key;
-			var lod = lodMesh.Value;
+        MeshBlock block;
 
-			// If block exists but does not have the LOD mesh, add LOD mesh
-			if (visibleBlocks.ContainsKey(blockCoord)) {
+        while (blockRecycling.Count > 0) {
+            block = blockRecycling.Dequeue();
+            loadedBlocks.Remove(block.BlockCoordinate);
+            Destroy(block.meshObject);
+        }
+    }
 
-				if (visibleBlocks[blockCoord].ContainsLOD(lod))
-					continue;
-				else
-					block = visibleBlocks[blockCoord];
-			}
-			// If block is in recycling, remove, reassign coordinate, add to visible blocks, add LOD mesh if it doesn't exist
-			else if (blockRecycling.Count > 0) {
+    // Utilities
+    private void BlockCoordinatesLoop(int loopRadius, Vector3Int blockCoord, Action<Vector3Int, Vector3Int> action) {
 
-				block = blockRecycling.Dequeue();
-				block.BlockCoordinate = blockCoord;
-				visibleBlocks.Add(blockCoord, block);
+        for (int z = blockCoord.z - loopRadius; z < blockCoord.z + loopRadius; z++) {
+            for (int y = blockCoord.y - loopRadius; y < blockCoord.y + loopRadius; y++) {
+                for (int x = blockCoord.x - loopRadius; x < blockCoord.x + loopRadius; x++) {
 
-				if (!block.ContainsLOD(lod))
-					block.AddLODMesh(lod);
-			}
-			// Create new block and add to visible blocks
-			else {
+                    var newBlockCoord = new Vector3Int(x, y, z);
 
-				block = GenerateBlock(blockCoord);
-				visibleBlocks.Add(blockCoord, block);
-				block.Material = BlockMaterial;
-				block.AddLODMesh(lod);
-			}
+                    // do action only for blocks inside a sphere of radius loopRadius
+                    if ( Vector3Int.Distance(newBlockCoord, blockCoord) < loopRadius)
+                        action(blockCoord, newBlockCoord);
+                }
+            }
+        }
+    }
 
-			RegenBlockMeshData(block);
-			block.RegenerateMesh(lod);
-			block.ShowMesh(lod);
-		}
-	}
+    private Vector3Int GetBlockCoordinate(Vector3 vector) {
 
-	void BlockCoordinatesLoop(Action<Vector3Int> action) {
+        return Vector3Int.FloorToInt(vector / BlockSize);
+    }
 
-		// Loop through coordinates
-		for (int z = currentCharacterBlockCoord.z - c_blockRenderDistance; z < currentCharacterBlockCoord.z + c_blockRenderDistance; z++) {
-			for (int y = currentCharacterBlockCoord.y - c_blockRenderDistance; y < currentCharacterBlockCoord.y + c_blockRenderDistance; y++) {
-				for (int x = currentCharacterBlockCoord.x - c_blockRenderDistance; x < currentCharacterBlockCoord.x + c_blockRenderDistance; x++) {
+    #endregion // Methods
 
-					// cut off corners of cube of blocks?
-					var blockCoord = new Vector3Int(x, y, z);
+    #region Classes
 
-					action(blockCoord);
-				}
-			}
-		}
-	}
+    public class MeshBlock {
 
-	void RecycleBlocks() {
+        #region Fields
 
-		// Recycle old blocks that are out of range
-		// Problem: Can't modify collection I'm using to iterate
-		foreach (Vector3Int blockCoord in visibleBlocks.Keys) {
+        public GameObject meshObject;
+        public Bounds bounds;
+        public Vector3Int BlockCoordinate;
 
-			Block block = visibleBlocks[blockCoord];
+        private Dictionary<int, MeshData> _meshes;
+        private bool _meshDataRecieved = false;
+        private int _lod;
+        private MeshRenderer _meshRenderer;
+        private MeshFilter _meshFilter;
 
-			var maxCoord = Mathf.Max(blockCoord.x, blockCoord.y, blockCoord.z);
-			var minCoord = Mathf.Min(blockCoord.x, blockCoord.y, blockCoord.z);
-			var maxLimit = Mathf.Max(currentCharacterBlockCoord.x, currentCharacterBlockCoord.y, currentCharacterBlockCoord.z) + c_blockRenderDistance;
-			var minLimit = Mathf.Min(currentCharacterBlockCoord.x, currentCharacterBlockCoord.y, currentCharacterBlockCoord.z) - c_blockRenderDistance;
+        #endregion // Fields
 
-			if (maxCoord > maxLimit || minCoord < minLimit) {
+        #region Constructor
 
-				block.HideMesh(visibleMeshLODs[blockCoord]);
-				visibleMeshLODs.Remove(blockCoord);
-                visibleBlocks.Remove(blockCoord);
-				blockRecycling.Enqueue(block);
-			}
-		}
-	}
+        public MeshBlock(Vector3Int coord, Transform parent, int lod) {
 
-	Block GenerateBlock(Vector3Int coord) {
+            BlockCoordinate = coord;
+            bounds = new(GetWorldPosition(), Vector3.one * TerrainGenerator.BlockSize);
 
-		GameObject block = new($"Block({coord.x},{coord.y},{coord.z})");
-		block.transform.parent = blockContainer.transform;
+            _meshes = new();
 
-		Block newBlock = block.AddComponent<Block>();
-		newBlock.BlockCoordinate = coord;
-		newBlock.CenterWorldCoordinate = GetBlockCenter(coord);
+            meshObject = new GameObject() { name = "Block" + coord };
+            meshObject.transform.parent = parent;
 
-		return newBlock;
-	}
+            _meshFilter = meshObject.AddComponent<MeshFilter>();
 
-	void RegenBlockMeshData(Block block) {
+            _meshRenderer = meshObject.AddComponent<MeshRenderer>();
+            _meshRenderer.material = terrainGenerator.BlockMaterial;
 
-		var size = Block.BlockSize;
-		var blockCoord = block.BlockCoordinate * size;
-		var bx = blockCoord.x;
-		var by = blockCoord.y;
-		var bz = blockCoord.z;
+            LOD = lod;
+            SetVisible(false);
+        }
 
-		// Get Noise map
-		float[,,] noise = NoiseMap.NoiseValues(block.CenterWorldCoordinate, size + 1, size + 1, size + 1, TerrainSettings.noiseScale, TerrainSettings.octave,
-			TerrainSettings.persistance, TerrainSettings.lacunarity, TerrainSettings.noiseOffset, false);
+        #endregion // Constructor
 
-		block.TriangleList.Clear();
+        #region Properties
 
-		// Loop through noise values
-		for (int z = 0; z < size; z++) {
-			for (int y = 0; y < size; y++) {
-				for (int x = 0; x < size; x++) {
+        public int LOD {
 
-					var cx = bx + x;
-					var cy = by + y;
-					var cz = bz + z;
+            get { return _lod; }
 
-					Cube cube = new(
-						new Vector4(cx, cy, cz, noise[x, y, z]),
-						new Vector4(cx + 1, cy, cz, noise[x + 1, y, z]),
-						new Vector4(cx + 1, cy, cz + 1, noise[x + 1, y, z + 1]),
-						new Vector4(cx, cy, cz + 1, noise[x, y, z + 1]),
-						new Vector4(cx, cy + 1, cz, noise[x, y + 1, z]),
-						new Vector4(cx + 1, cy + 1, cz, noise[x + 1, y + 1, z]),
-						new Vector4(cx + 1, cy + 1, cz + 1, noise[x + 1, y + 1, z + 1]),
-						new Vector4(cx, cy + 1, cz + 1, noise[x, y + 1, z + 1])
-					);
+            set {
 
-					block.TriangleList.AddRange(MarchingCubes.GetTriangles(cube, TerrainSettings.surfaceValue));
-				}
-			}
-		}
-	}
+                if (value != _lod)
+                    _lod = value;
 
-	void ClearRecycling() {
+                if (!_meshes.ContainsKey(value))
+                    GenMesh();
+                else
+                    DrawCurrentMesh();
+                
+            }
+        }
 
-		foreach (Block block in blockRecycling) {
-			Destroy(block);
-		}
+        #endregion // Properties
 
-		blockRecycling.Clear();
-	}
+        #region Methods
 
-	public void OnSettingsUpdated() {
+        public void DrawCurrentMesh() {
 
+            if (_meshDataRecieved) {
+                _meshFilter.mesh = _meshes[_lod].Mesh;
+                _meshRenderer.material = terrainGenerator.BlockMaterial;
+                SetVisible(true);
+            }
+        }
 
-	}
+        public void GenMesh() {
 
-	//void RegenBlockMesh(Block block, int LOD) {
+            _meshDataRecieved = false;
+            terrainGenerator.RequestTerrainData(GetWorldPosition(), _lod, OnTerrainDataReceived);
+        }
 
-	//	block.MeshContainers[LOD].RegenerateMesh();
-	//}
+        private void OnTerrainDataReceived(TerrainData data) {
 
-	//void ShowBlockMesh(Block block, int LOD) {
+            terrainGenerator.RequestMeshData(data, OnMeshDataReceived);
+        }
 
-	//	block.MeshContainers[LOD].ShowMesh(blockMaterial, false);		
-	//}
+        private void OnMeshDataReceived(MeshData data) {
 
-	#endregion // Methods
+            int lod = data.LOD;
+
+            if (!_meshes.ContainsKey(lod)) {
+
+                _meshes.Add(lod, data);
+            }
+            else {
+                _meshes[lod] = data;
+            }
+
+            _meshDataRecieved = true;
+            LOD = lod;
+        }
+
+        public bool ContainsLOD(int index) {
+
+            return _meshes.ContainsKey(index);
+        }
+
+        public void SetVisible(bool visible) {
+
+            meshObject.SetActive(visible);
+        }
+
+        public bool IsVisible() {
+
+            return meshObject.activeSelf;
+        }
+
+        public Vector3Int GetWorldPosition() {
+            return BlockCoordinate * TerrainGenerator.BlockSize;
+        }
+
+        #endregion // Methods
+    }
+
+    #endregion // Classes
 }
